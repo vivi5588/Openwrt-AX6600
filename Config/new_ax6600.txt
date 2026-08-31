@@ -1,0 +1,486 @@
+# ============================================================
+# AX6600 / JDCloud RE-CS-02
+# GENERAL 配置
+#
+# 目标：
+# - IPQ6018 / 1GB RAM
+# - NSS + ECM 硬件加速
+# - Firewall4 / nftables
+# - 不使用 legacy iptables
+# - 不使用 Docker / Podman
+# - 支持 WireGuard
+# - 支持 eMMC 管理 / 扩容
+# - 支持 USB 存储 / Samba
+# - 支持常见 USB 网卡 / QMI 4G/5G Modem
+#
+# 注意：
+# NSS ECM 环境下：
+#   firewall flow_offloading=0
+#   firewall flow_offloading_hw=0
+#   network packet_steering=0
+#
+# CONFIG_PACKAGE_kmod-nft-offload=y 只是满足 firewall4
+# 编译依赖，并不代表运行时开启 nft flow offload。
+# ============================================================
+
+
+# ============================================================
+# 科学插件
+# ============================================================
+
+# 默认不集成代理插件
+# CONFIG_PACKAGE_luci-app-homeproxy=y
+
+
+# ============================================================
+# LuCI 常用插件
+# ============================================================
+
+CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-app-netspeedtest=n
+CONFIG_PACKAGE_luci-app-partexp=y
+CONFIG_PACKAGE_luci-app-samba4=y
+
+# NSS 环境暂不使用普通 SQM
+# CONFIG_PACKAGE_luci-app-sqm=y
+# CONFIG_PACKAGE_sqm-scripts-nss=y
+
+CONFIG_PACKAGE_luci-app-wolplus=y
+CONFIG_PACKAGE_luci-app-sentinel=y
+CONFIG_PACKAGE_luci-app-arpbind=y
+
+
+# ============================================================
+# Firewall4 / nftables
+# ============================================================
+
+CONFIG_PACKAGE_luci-app-firewall=n
+CONFIG_PACKAGE_luci-app-firewall4=y
+CONFIG_PACKAGE_firewall4=y
+
+# firewall4 使用 nftables-json
+CONFIG_PACKAGE_nftables-json=y
+
+# 不使用 legacy iptables
+CONFIG_PACKAGE_kmod-nf-ipt=n
+CONFIG_PACKAGE_iptables=n
+
+# 与纯 nftables 配置保持一致
+CONFIG_PACKAGE_iptasn=n
+
+
+# ============================================================
+# 删除不需要的 LuCI 插件
+# ============================================================
+
+CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
+CONFIG_PACKAGE_luci-app-wol=n
+CONFIG_PACKAGE_luci-app-gecoosac=n
+CONFIG_PACKAGE_luci-app-upnp=n
+
+
+# ============================================================
+# 编译参数
+# ============================================================
+
+CONFIG_CCACHE=y
+CONFIG_DEVEL=n
+
+# 内核以性能为优先
+CONFIG_KERNEL_CC_OPTIMIZE_FOR_PERFORMANCE=y
+
+# 当前项目构建机制保留
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+
+# 不生成 initramfs
+CONFIG_TARGET_ROOTFS_INITRAMFS=n
+
+
+# ============================================================
+# IPQ6018 / 1GB 内存配置
+# ============================================================
+
+CONFIG_ATH11K_MEM_PROFILE_1G=y
+CONFIG_IPQ_MEM_PROFILE_1024=y
+
+
+# ============================================================
+# Qualcomm NSS
+# ============================================================
+
+CONFIG_PACKAGE_kmod-qca-nss-drv=y
+CONFIG_PACKAGE_kmod-qca-nss-ecm=y
+
+CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-qdisc=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-map-t=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-bridge-mgr=y
+CONFIG_PACKAGE_kmod-qca-nss-drv-vlan-mgr=y
+
+
+# ============================================================
+# 基础内核模块
+# ============================================================
+
+# 不使用 bonding
+CONFIG_PACKAGE_kmod-bonding=n
+CONFIG_PACKAGE_proto-bonding=n
+
+# DSA
+CONFIG_PACKAGE_kmod-dsa=y
+
+# 网络诊断
+CONFIG_PACKAGE_kmod-inet-diag=y
+CONFIG_PACKAGE_kmod-inet-mptcp-diag=n
+CONFIG_PACKAGE_kmod-netlink-diag=n
+
+# 禁止直接写 MTD，降低误操作风险
+CONFIG_PACKAGE_kmod-mtd-rw=n
+
+# 老式 skb recycler 优化关闭
+CONFIG_PACKAGE_skb_recycler=n
+
+
+# ============================================================
+# Firewall4 / nftables 内核模块
+# ============================================================
+
+# Firewall4 基础依赖
+CONFIG_PACKAGE_kmod-nft-core=y
+CONFIG_PACKAGE_kmod-nft-fib=y
+CONFIG_PACKAGE_kmod-nft-nat=y
+CONFIG_PACKAGE_kmod-nft-offload=y
+CONFIG_PACKAGE_kmod-nft-fullcone=y
+
+# Bridge nftables
+CONFIG_PACKAGE_kmod-nft-bridge=y
+
+# 透明代理相关，方便 HomeProxy/Mihomo 等 nft 模式使用
+CONFIG_PACKAGE_kmod-nft-socket=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
+
+# XFRM/IPsec nft 支持，体积不大，保留
+CONFIG_PACKAGE_kmod-nft-xfrm=y
+
+# 当前不用的 nft 扩展
+CONFIG_PACKAGE_kmod-nft-arp=n
+CONFIG_PACKAGE_kmod-nft-compat=n
+CONFIG_PACKAGE_kmod-nft-connlimit=n
+CONFIG_PACKAGE_kmod-nft-dup-inet=n
+CONFIG_PACKAGE_kmod-nft-netdev=n
+CONFIG_PACKAGE_kmod-nft-queue=n
+
+# nft-compat 会依赖 kmod-nf-ipt，
+# PURE nftables / NSS ECM 环境不需要
+
+
+# ============================================================
+# Netfilter 其他组件
+# ============================================================
+
+# NAT66 默认关闭
+# 正常 IPv6 路由不需要 NAT66
+CONFIG_PACKAGE_kmod-nf-nat6=n
+
+# 老式 FTP/SIP/PPTP 等 NAT helper 默认关闭
+CONFIG_PACKAGE_kmod-nf-nathelper=n
+
+
+# ============================================================
+# WireGuard
+# ============================================================
+
+# 内核 WireGuard
+CONFIG_PACKAGE_kmod-wireguard=y
+
+# wg 用户态管理工具
+CONFIG_PACKAGE_wireguard-tools=y
+
+# LuCI / netifd WireGuard 协议
+CONFIG_PACKAGE_luci-proto-wireguard=y
+
+
+# ============================================================
+# TUN
+# ============================================================
+
+# Mihomo / Xray / VPN 等可能需要
+CONFIG_PACKAGE_kmod-tun=y
+
+
+# ============================================================
+# 文件系统
+# ============================================================
+
+# Linux / eMMC / USB 磁盘
+CONFIG_PACKAGE_kmod-fs-ext4=y
+
+# Windows NTFS
+CONFIG_PACKAGE_kmod-fs-ntfs3=y
+
+# Windows / macOS U盘、移动硬盘常见格式
+CONFIG_PACKAGE_kmod-fs-exfat=y
+CONFIG_PACKAGE_kmod-fs-vfat=y
+
+# 不使用 Btrfs
+CONFIG_PACKAGE_kmod-fs-btrfs=n
+
+# 当前不使用 rclone mount / sshfs 等 FUSE 文件系统
+CONFIG_PACKAGE_kmod-fuse=n
+
+
+# ============================================================
+# MMC / eMMC
+# ============================================================
+
+CONFIG_PACKAGE_kmod-mmc=y
+CONFIG_PACKAGE_kmod-sdhci=y
+CONFIG_PACKAGE_kmod-sdhci-msm=y
+
+# eMMC 查询 / 管理工具
+CONFIG_PACKAGE_mmc-utils=y
+
+# NAND 工具不需要
+CONFIG_PACKAGE_nand-utils=n
+
+
+# ============================================================
+# USB 3.0 基础支持
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-core=y
+CONFIG_PACKAGE_kmod-usb3=y
+CONFIG_PACKAGE_kmod-usb-dwc3=y
+CONFIG_PACKAGE_kmod-usb-xhci=y
+
+# USB1 老控制器不需要
+CONFIG_PACKAGE_kmod-usb-ohci=n
+CONFIG_PACKAGE_kmod-usb-uhci=n
+
+# USB 音频不需要
+CONFIG_PACKAGE_kmod-usb-audio=n
+CONFIG_PACKAGE_kmod-sound-core=n
+
+
+# ============================================================
+# USB 存储
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-storage=y
+CONFIG_PACKAGE_kmod-usb-storage-extras=y
+
+# USB Attached SCSI，SSD / 新移动硬盘建议开启
+CONFIG_PACKAGE_kmod-usb-storage-uas=y
+
+
+# ============================================================
+# USB 网卡基础支持
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-net=y
+
+
+# ============================================================
+# ASIX USB 网卡
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-net-asix=y
+CONFIG_PACKAGE_kmod-usb-net-asix-ax88179=y
+
+
+# ============================================================
+# Realtek USB 网卡
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-net-rtl8150=n
+
+# RTL8152 / RTL8153 / 部分 RTL8156
+CONFIG_PACKAGE_kmod-usb-net-rtl8152=y
+
+
+# ============================================================
+# CDC USB 网络
+# ============================================================
+
+# 常见 USB Ethernet
+CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+
+# 部分 4G/5G Modem
+CONFIG_PACKAGE_kmod-usb-net-cdc-ncm=y
+CONFIG_PACKAGE_kmod-usb-net-cdc-mbim=y
+
+# 少用协议关闭
+CONFIG_PACKAGE_kmod-usb-net-cdc-eem=n
+CONFIG_PACKAGE_kmod-usb-net-cdc-subset=n
+
+# Huawei 专用 NCM 当前不需要
+CONFIG_PACKAGE_kmod-usb-net-huawei-cdc-ncm=n
+
+
+# ============================================================
+# Android USB RNDIS 网络共享
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-net-rndis=y
+
+
+# ============================================================
+# iPhone USB 网络共享
+# ============================================================
+
+# 当前不需要 iPhone USB 共享
+CONFIG_PACKAGE_kmod-usb-net-ipheth=n
+CONFIG_PACKAGE_libimobiledevice=n
+CONFIG_PACKAGE_usbmuxd=n
+
+
+# ============================================================
+# USB 4G / 5G QMI Modem
+# ============================================================
+
+CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y
+CONFIG_PACKAGE_kmod-usb-net-qmi-wwan-fibocom=y
+CONFIG_PACKAGE_kmod-usb-net-qmi-wwan-quectel=y
+
+# QMI 用户态管理
+CONFIG_PACKAGE_uqmi=y
+
+# LuCI QMI 协议支持
+CONFIG_PACKAGE_luci-proto-qmi=y
+
+# USB Modem 模式切换
+CONFIG_PACKAGE_usb-modeswitch=y
+
+# Qualcomm USB serial 当前不用
+CONFIG_PACKAGE_kmod-usb-serial-qualcomm=n
+
+# Sierra Wireless 当前不用
+CONFIG_PACKAGE_kmod-usb-net-sierrawireless=n
+
+
+# ============================================================
+# Docker / Podman
+# ============================================================
+
+# PURE 版不用容器，关闭 veth
+CONFIG_PACKAGE_kmod-veth=n
+
+
+# ============================================================
+# USB / 磁盘管理工具
+# ============================================================
+
+CONFIG_PACKAGE_usbutils=y
+
+# U盘/移动硬盘自动挂载
+CONFIG_PACKAGE_automount=y
+CONFIG_PACKAGE_block-mount=y
+CONFIG_PACKAGE_luci-app-mountd=y
+
+# 块设备识别
+CONFIG_PACKAGE_blkid=y
+CONFIG_PACKAGE_lsblk=y
+
+# 分区工具
+CONFIG_PACKAGE_fdisk=y
+CONFIG_PACKAGE_cfdisk=y
+CONFIG_PACKAGE_sfdisk=y
+
+CONFIG_PACKAGE_gdisk=y
+CONFIG_PACKAGE_cgdisk=y
+CONFIG_PACKAGE_sgdisk=y
+
+
+# ============================================================
+# ext4 / eMMC 扩容工具
+# ============================================================
+
+CONFIG_PACKAGE_e2fsprogs=y
+
+# ext4 在线/离线调整文件系统大小
+CONFIG_PACKAGE_resize2fs=y
+
+# ext2/3/4 文件系统参数调整
+CONFIG_PACKAGE_tune2fs=y
+
+
+# ============================================================
+# 系统工具
+# ============================================================
+
+CONFIG_PACKAGE_autocore=y
+
+# CPU 频率工具
+CONFIG_PACKAGE_cpufreq=y
+
+# 系统监控
+CONFIG_PACKAGE_htop=y
+
+# 系统日志/内核日志
+CONFIG_PACKAGE_dmesg=y
+
+# 网络工具
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_iperf3=y
+CONFIG_PACKAGE_curl=y
+
+# 性能测试默认不需要
+CONFIG_PACKAGE_coremark=n
+
+# Perl 不需要
+CONFIG_PACKAGE_perl=n
+
+
+# ============================================================
+# OpenSSL
+# ============================================================
+
+CONFIG_PACKAGE_libopenssl=y
+CONFIG_PACKAGE_libopenssl-conf=y
+CONFIG_PACKAGE_openssl-util=y
+
+
+# ============================================================
+# SSH
+# ============================================================
+
+CONFIG_PACKAGE_openssh-keygen=y
+CONFIG_PACKAGE_openssh-sftp-server=y
+
+
+# ============================================================
+# LuCI 基础组件
+# ============================================================
+
+CONFIG_PACKAGE_luci-base=y
+CONFIG_PACKAGE_luci-compat=y
+CONFIG_PACKAGE_luci-lib-base=y
+CONFIG_PACKAGE_luci-lib-ipkg=y
+CONFIG_PACKAGE_luci-lua-runtime=y
+
+# relayd 网络协议
+CONFIG_PACKAGE_luci-proto-relay=y
+
+
+# ============================================================
+# Samba
+# ============================================================
+
+CONFIG_PACKAGE_luci-app-samba4=y
+
+
+# ============================================================
+# 雅典娜 LED 点阵屏
+# ============================================================
+
+CONFIG_PACKAGE_luci-app-athena-led=y
+CONFIG_PACKAGE_athena-led-control=y
+
+
+# ============================================================
+# 无线相关
+# ============================================================
+
+CONFIG_PACKAGE_iwinfo=y
+CONFIG_PACKAGE_luci-app-wireless-regdb=y
