@@ -223,11 +223,11 @@ CONFIG_PACKAGE_kmod-fs-ntfs3=y
 CONFIG_PACKAGE_kmod-fs-exfat=y
 CONFIG_PACKAGE_kmod-fs-vfat=y
 
-# 不使用 Btrfs
-CONFIG_PACKAGE_kmod-fs-btrfs=n
+# 使用 Btrfs
+CONFIG_PACKAGE_kmod-fs-btrfs=y
 
 # 当前不使用 rclone mount / sshfs 等 FUSE 文件系统
-CONFIG_PACKAGE_kmod-fuse=n
+CONFIG_PACKAGE_kmod-fuse=y
 
 
 # ============================================================
