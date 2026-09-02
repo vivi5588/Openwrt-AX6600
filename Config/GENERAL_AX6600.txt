@@ -1,13 +1,13 @@
 # ============================================================
 # AX6600 / JDCloud RE-CS-02
-# GENERAL 配置
+# GENERAL 配置--加入docker需要的配置
 #
 # 目标：
 # - IPQ6018 / 1GB RAM
 # - NSS + ECM 硬件加速
 # - Firewall4 / nftables
-# - 不使用 legacy iptables
-# - 不使用 Docker / Podman
+# - Docker 使用 iptables-nft 兼容层，不使用 legacy iptables 后端
+# - 支持 Docker / Dockerman / containerd
 # - 支持 WireGuard
 # - 支持 eMMC 管理 / 扩容
 # - 支持 USB 存储 / Samba
@@ -61,11 +61,24 @@ CONFIG_PACKAGE_firewall4=y
 # firewall4 使用 nftables-json
 CONFIG_PACKAGE_nftables-json=y
 
-# 不使用 legacy iptables
-CONFIG_PACKAGE_kmod-nf-ipt=n
-CONFIG_PACKAGE_iptables=n
+# Docker 需要 iptables 接口
+# 使用 nft backend，不启用 legacy iptables backend
+CONFIG_PACKAGE_kmod-nf-ipt=y
+CONFIG_PACKAGE_iptables-nft=y
+CONFIG_PACKAGE_ip6tables-nft=y
 
-# 与纯 nftables 配置保持一致
+# Docker / iptables-nft 所需 IPv6 与扩展模块
+CONFIG_PACKAGE_kmod-ip6tables=y
+CONFIG_PACKAGE_kmod-ipt-core=y
+CONFIG_PACKAGE_kmod-ipt-extra=y
+CONFIG_PACKAGE_kmod-ipt-nat=y
+CONFIG_PACKAGE_kmod-ipt-nat6=y
+CONFIG_PACKAGE_kmod-ipt-physdev=y
+
+# Docker 官方 OpenWrt 包依赖
+CONFIG_PACKAGE_iptables-mod-extra=y
+
+# 不使用旧的 iptasn
 CONFIG_PACKAGE_iptasn=n
 
 
@@ -156,32 +169,40 @@ CONFIG_PACKAGE_kmod-nft-fullcone=y
 # Bridge nftables
 CONFIG_PACKAGE_kmod-nft-bridge=y
 
-# 透明代理相关，方便 HomeProxy/Mihomo 等 nft 模式使用
+# 透明代理相关
+# 方便 HomeProxy / Mihomo 等 nft 模式使用
 CONFIG_PACKAGE_kmod-nft-socket=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 
-# XFRM/IPsec nft 支持，体积不大，保留
+# XFRM / IPsec nft 支持
 CONFIG_PACKAGE_kmod-nft-xfrm=y
+
+# Docker 的 iptables-nft 兼容层需要
+CONFIG_PACKAGE_kmod-nft-compat=y
 
 # 当前不用的 nft 扩展
 CONFIG_PACKAGE_kmod-nft-arp=n
-CONFIG_PACKAGE_kmod-nft-compat=n
 CONFIG_PACKAGE_kmod-nft-connlimit=n
 CONFIG_PACKAGE_kmod-nft-dup-inet=n
 CONFIG_PACKAGE_kmod-nft-netdev=n
 CONFIG_PACKAGE_kmod-nft-queue=n
 
-# nft-compat 会依赖 kmod-nf-ipt，
-# PURE nftables / NSS ECM 环境不需要
-
 
 # ============================================================
-# Netfilter 其他组件
+# Netfilter / Docker 网络组件
 # ============================================================
 
-# NAT66 默认关闭
-# 正常 IPv6 路由不需要 NAT66
-CONFIG_PACKAGE_kmod-nf-nat6=n
+# Docker NAT
+CONFIG_PACKAGE_kmod-nf-nat=y
+
+# Docker IPv6 网络
+CONFIG_PACKAGE_kmod-nf-nat6=y
+
+# Docker / Swarm / Service IPVS
+CONFIG_PACKAGE_kmod-nf-ipvs=y
+
+# Docker bridge 网络过滤
+CONFIG_PACKAGE_kmod-br-netfilter=y
 
 # 老式 FTP/SIP/PPTP 等 NAT helper 默认关闭
 CONFIG_PACKAGE_kmod-nf-nathelper=n
@@ -223,10 +244,11 @@ CONFIG_PACKAGE_kmod-fs-ntfs3=y
 CONFIG_PACKAGE_kmod-fs-exfat=y
 CONFIG_PACKAGE_kmod-fs-vfat=y
 
-# 使用 Btrfs
+# Docker containerd 依赖 Btrfs 工具及内核模块
 CONFIG_PACKAGE_kmod-fs-btrfs=y
+CONFIG_PACKAGE_btrfs-progs=y
 
-# 当前不使用 rclone mount / sshfs 等 FUSE 文件系统
+# 保留 FUSE 支持
 CONFIG_PACKAGE_kmod-fuse=y
 
 
@@ -360,11 +382,106 @@ CONFIG_PACKAGE_kmod-usb-net-sierrawireless=n
 
 
 # ============================================================
-# Docker / Podman
+# Docker / Container
 # ============================================================
 
-# PURE 版不用容器，关闭 veth
-CONFIG_PACKAGE_kmod-veth=n
+# ------------------------------------------------------------
+# Docker LuCI 管理
+# ------------------------------------------------------------
+
+CONFIG_PACKAGE_luci-app-dockerman=y
+CONFIG_PACKAGE_luci-lib-docker=y
+
+
+# ------------------------------------------------------------
+# Docker Engine / CLI
+# ------------------------------------------------------------
+
+# Docker daemon
+CONFIG_PACKAGE_dockerd=y
+
+# Docker CLI
+CONFIG_PACKAGE_docker=y
+
+# Docker Compose
+CONFIG_PACKAGE_docker-compose=y
+
+
+# ------------------------------------------------------------
+# Container Runtime
+# ------------------------------------------------------------
+
+CONFIG_PACKAGE_containerd=y
+CONFIG_PACKAGE_runc=y
+CONFIG_PACKAGE_tini=y
+
+
+# ------------------------------------------------------------
+# Cgroup
+# ------------------------------------------------------------
+
+CONFIG_PACKAGE_cgroupfs-mount=y
+
+
+# ------------------------------------------------------------
+# Docker 网络
+# ------------------------------------------------------------
+
+# Docker 容器虚拟 Ethernet
+CONFIG_PACKAGE_kmod-veth=y
+
+# Docker / 内核配置检查
+CONFIG_PACKAGE_kmod-ikconfig=y
+
+# Docker bridge / netfilter
+CONFIG_PACKAGE_kmod-br-netfilter=y
+
+# Docker IPVS
+CONFIG_PACKAGE_kmod-nf-ipvs=y
+
+# Docker NAT
+CONFIG_PACKAGE_kmod-nf-nat=y
+CONFIG_PACKAGE_kmod-nf-nat6=y
+
+
+# ------------------------------------------------------------
+# Docker iptables-nft 兼容层
+#
+# Docker 仍会调用 iptables/ip6tables 接口，
+# 但这里使用 nft backend。
+#
+# OpenWrt 主防火墙仍然是：
+#   firewall4 -> nftables
+#
+# 并没有切换回 firewall3 / legacy iptables。
+# ------------------------------------------------------------
+
+CONFIG_PACKAGE_kmod-nf-ipt=y
+
+CONFIG_PACKAGE_kmod-ip6tables=y
+
+CONFIG_PACKAGE_kmod-ipt-core=y
+CONFIG_PACKAGE_kmod-ipt-extra=y
+CONFIG_PACKAGE_kmod-ipt-nat=y
+CONFIG_PACKAGE_kmod-ipt-nat6=y
+CONFIG_PACKAGE_kmod-ipt-physdev=y
+
+CONFIG_PACKAGE_kmod-nft-compat=y
+
+CONFIG_PACKAGE_iptables-nft=y
+CONFIG_PACKAGE_ip6tables-nft=y
+
+CONFIG_PACKAGE_iptables-mod-extra=y
+
+
+# ------------------------------------------------------------
+# Docker Storage
+# ------------------------------------------------------------
+
+# containerd 依赖 btrfs-progs
+# btrfs-progs 又依赖 kmod-fs-btrfs
+CONFIG_PACKAGE_kmod-fs-btrfs=y
+CONFIG_PACKAGE_btrfs-progs=y
 
 
 # ============================================================
@@ -417,7 +534,7 @@ CONFIG_PACKAGE_cpufreq=y
 # 系统监控
 CONFIG_PACKAGE_htop=y
 
-# 系统日志/内核日志
+# 系统日志 / 内核日志
 CONFIG_PACKAGE_dmesg=y
 
 # 网络工具
